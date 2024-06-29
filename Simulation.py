@@ -37,7 +37,7 @@ def admitPatient():
 
     #Extract patient_type and patient_id 
     data = request.json
-    print(data)
+    #print(data)
     status = None
     if data:
         patient_id = data.get('patient_id')
@@ -49,9 +49,9 @@ def admitPatient():
         replan = request.forms.get('replan') or request.query.replan
         replan = request.forms.get('status') or request.query.status
 
-    print(patient_type + " pt ")
-    print(patient_id + " pid ")
-    print(replan + " replan ")
+    # print(patient_type + " pt ")
+    # print(patient_id + " p_id ")
+    # print(str(replan) + " replan ")
 
     # Check if the patient_id exists, if not, generate one
     if not patient_id:
@@ -63,7 +63,7 @@ def admitPatient():
         replan, status = checkResources(patient_type, "EM", True)
         print(patient_id)
     else:
-        replan, status = checkResources(patient_type, "INTAKE", False)
+        replan, status = checkResources(patient_type, "INTAKE", False) 
     #New patient added above, prepare response
     response_data = {
         'message': f"New patient {patient_id} admitted.",
@@ -84,12 +84,13 @@ def admitPatient():
 
 @app.post('/replanPatient')
 def replanPatient():
+    print("entered replanPatient")
     print(patients)
     patient_id = int(request.forms.get('patient_id', None))
     response.content_type = 'application/json'
     request_data = {
          "behavior": "fork_running",
-         "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Amgad_Al-Zamkan.dir/Main.xml",
+         "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Amgad_Al-Zamkan.dir/Main_03710934.xml",
         "init": json.dumps({
              "patient_id": patient_id
         })
@@ -98,6 +99,7 @@ def replanPatient():
     print(res)
     if res.status_code != 200:
          raise Exception(res)
+    print("exit replanPatient")
     return json.dumps({})
 
 
@@ -128,6 +130,7 @@ def nextTreatment(diagnosis, status):
      
          
 def determineDiagnosis(patient_type):
+    print("entered determineDiagnosis")
 
     diagnoses = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4']
     probabilities = [0.125, 0.125, 0.125, 0.125, 0.5, 0.25, 0.0625, 0.0625]
@@ -145,7 +148,7 @@ def determineComp(diagnosis):
     probabilities = {'A1': 0.125, 'A2': 0.125, 'A3': 0.125, 'A4': 0.125, 
     'B1': 0.5, 'B2': 0.25, 'B3': 0.0625,'B4': 0.0625 }
 
-    print("determining complication")
+    print("entered determineComp")
 
     return random.random() < probabilities.get(diagnosis, 0)
 
@@ -153,16 +156,16 @@ def determineComp(diagnosis):
 
 @app.post('/treatPatient')
 def treatPatient():
- 
+    print("entered treatPatient")
     status = request.forms.get('status', None)
     patient_id = int(request.forms.get('patient_id', None))
     diagnosis = None
     
     print('currently in: ' + status)
 
-    if (status == "EM"):
+    if (status == 'EM'):
         if random.choice([True,False]):
-            status = "RELEASE"
+            status = 'RELEASE'
         else:
             diagnosis = determineDiagnosis(patients[patient_id]['patient_type'])
             patients[patient_id]['diagnosis'] = diagnosis
@@ -197,8 +200,8 @@ def treatPatient():
         'status': status,
         'diagnosis': diagnosis
         }
-    print(response_data)
-    print(patients)
+    print("status: " + status)
+    print("exit treatPatient")
 
     response.content_type = 'application/json'
     return json.dumps(response_data)
