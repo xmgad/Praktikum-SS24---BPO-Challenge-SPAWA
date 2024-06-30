@@ -24,6 +24,7 @@ def checkResources(patient_type, resource_type, is_new_patient):
         status ='INTAKE'
     else:
             if resources[resource_type] > 0:
+                 resources[resource_type] -= 1
                  replan = False
                  status = resource_type
             else:
@@ -32,8 +33,10 @@ def checkResources(patient_type, resource_type, is_new_patient):
 
 @app.post('/admitPatient')
 def admitPatient():
+    
     print(patients)
     print('\nentered admitPatient\n')
+    print(resources)
 
     #Extract patient_type and patient_id 
     data = request.json
@@ -63,6 +66,7 @@ def admitPatient():
         replan, status = checkResources(patient_type, "EM", True)
         print(patient_id)
     else:
+        print(resources)
         replan, status = checkResources(patient_type, "INTAKE", False) 
     #New patient added above, prepare response
     response_data = {
@@ -73,7 +77,6 @@ def admitPatient():
         'status': status
         }
     print(response_data)
-    print(patients)
 
     #response content type to application/json
     response.content_type = 'application/json'
@@ -162,6 +165,7 @@ def treatPatient():
     diagnosis = None
     
     print('currently in: ' + status)
+    
 
     if (status == 'EM'):
         if random.choice([True,False]):
@@ -171,12 +175,10 @@ def treatPatient():
             patients[patient_id]['diagnosis'] = diagnosis
             status = nextTreatment(diagnosis, status)
             #decrement EM resources
-        resources['EM'] -= 1
 
     elif (status == 'INTAKE'):
         status = nextTreatment(patients[patient_id]['patient_type'], status)
         #decrement INTAKE resources
-        resources['INTAKE'] -= 1
     elif (status == 'OR'):
         status = nextTreatment(patients[patient_id]['patient_type'], status)
         resources['OR'] -=1
@@ -201,6 +203,7 @@ def treatPatient():
         'diagnosis': diagnosis
         }
     print("status: " + status)
+    print(resources)
     print("exit treatPatient")
 
     response.content_type = 'application/json'
