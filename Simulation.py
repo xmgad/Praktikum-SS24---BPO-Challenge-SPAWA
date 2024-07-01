@@ -2,6 +2,9 @@ from bottle import Bottle, request, response, run
 import json  
 import random
 import requests
+import time
+
+
 
 app = Bottle()
 
@@ -156,6 +159,54 @@ def determineComp(diagnosis):
     return random.random() < probabilities.get(diagnosis, 0)
 
 
+def manageResourceTransition(diagnosis, old_resource_type, new_resource_type):
+    resourcesAvailable == True
+    if(new_resource_type == 'OR'):
+        if(resources[new_resource_type] > 0):
+            resources[new_resource_type] -= 1
+            if(old_resource_type == 'NURSING'):
+                if('A' in diagnosis):
+                    resources['A_BED'] += 1
+                else:
+                    resources['B_BED'] += 1
+            else:
+                resources[old_resource_type] += 1
+                
+        else:
+            resourcesAvailable = False
+            #if no resources available
+    elif(new_resource_type == 'NURSING'):
+        if('A' in diagnosis):
+            if(resources['A_BED'] > 0):
+                resources['A_BED'] -= 1
+                if(old_resource_type == 'NURSING'):
+                    if('A' in diagnosis):
+                        resources['A_BED'] += 1
+                    else:
+                        resources['B_BED'] += 1
+                else:
+                    resources[old_resource_type] += 1
+            else:
+                resourcesAvailable = False
+                #if no resources available 
+        else:
+            if(resources['B_BED'] > 0 ):
+                resources['B_BED'] -= 1
+                resources['B_BED'] += 1
+            else:
+                resourcesAvailable = False
+                #no resources available 
+    else:
+        #Release -> old_resource_type should be NURSING
+        if ('A' in diagnosis):
+            resources['A_BED'] += 1
+        else:
+            resources['B_BED'] += 1
+
+
+    return resourcesAvailable
+
+
 
 @app.post('/treatPatient')
 def treatPatient():
@@ -163,37 +214,74 @@ def treatPatient():
     status = request.forms.get('status', None)
     patient_id = int(request.forms.get('patient_id', None))
     diagnosis = None
+    resourcesAvailable = True
     
     print('currently in: ' + status)
-    
+    # Determine diagnosis for patients moving out of EM or INTAKE
+    if(status == 'EM' or status == 'INTAKE'):
+        patients[patient_id]['diagnosis'] = determineDiagnosis(patients[patient_id]['patient_type'])
 
     if (status == 'EM'):
         if random.choice([True,False]):
+            resources['EM'] += 1  # Free up EM resource as patient leaves EM
             status = 'RELEASE'
         else:
-            diagnosis = determineDiagnosis(patients[patient_id]['patient_type'])
-            patients[patient_id]['diagnosis'] = diagnosis
-            status = nextTreatment(diagnosis, status)
-            #decrement EM resources
-
+            new_status = nextTreatment(diagnosis, status) # new_status = where they're going
+            manageResourceTransition(diagnosis, status, new_status)
+            status = new_status
+             #new status will be OR or NURSING
     elif (status == 'INTAKE'):
-        status = nextTreatment(patients[patient_id]['patient_type'], status)
-        #decrement INTAKE resources
+        new_status = nextTreatment(patients[patient_id]['patient_type'], status)
+        manageResourceTransition(status, new_status) #determine if resources are available 
+        #and check if there is a necessary pause + -/+ resources]
+        status = new_status
     elif (status == 'OR'):
-        status = nextTreatment(patients[patient_id]['patient_type'], status)
-        resources['OR'] -=1
+        new_status = nextTreatment(patients[patient_id]['patient_type'], status)
+        manageResourceTransition(status, new_status) 
+        status = new_status
+
     elif(status == 'NURSING'):
         if(patients[patient_id]['patient_type'] == "EM"):
-           status = nextTreatment(patients[patient_id]['diagnosis'], status)
+           new_status = nextTreatment(patients[patient_id]['diagnosis'], status)
         else:
-            status = nextTreatment(patients[patient_id]['patient_type'], status)
-
-        if( 'A' in patients[patient_id]['patient_type'] or patients[patient_id]['diagnosis']):
-            resources['A_BED'] -= 1
-        else:
-            resources['B_BED'] -= 1
+           new_status = nextTreatment(patients[patient_id]['patient_type'], status)
+        
+        manageResourceTransition(diagnosis, status, new_status)
+        
+        # if( 'A' in patients[patient_id]['patient_type'] or patients[patient_id]['diagnosis']):
+        #    resources['A_BED'] -= 1
+        # else:
+        #    resources['B_BED'] -= 1
     else:
         print("Patient will be released")
+        manageResourceTransition(diagnosis, status, new_status)
+    
+    if(manageResourceTransition == False):
+        #queue #I don't like ths, better create a function that queues the patient by waiting/sleeping until there is a n
+        # new patient 
+        # create new action point called waiting room
+
+
+
+
+    # elif (status == 'INTAKE'):
+    #     status = nextTreatment(patients[patient_id]['patient_type'], status)
+    #     #decrement INTAKE resources
+    # elif (status == 'OR'):
+    #     status = nextTreatment(patients[patient_id]['patient_type'], status)
+    #     resources['OR'] -=1
+    # elif(status == 'NURSING'):
+    #     if(patients[patient_id]['patient_type'] == "EM"):
+    #        status = nextTreatment(patients[patient_id]['diagnosis'], status)
+    #     else:
+    #         status = nextTreatment(patients[patient_id]['patient_type'], status)
+
+    #     if( 'A' in patients[patient_id]['patient_type'] or patients[patient_id]['diagnosis']):
+    #         resources['A_BED'] -= 1
+    #     else:
+    #         resources['B_BED'] -= 1
+    # else:
+    #     print("Patient will be released")
 
 
     response_data = {
@@ -321,138 +409,3 @@ if __name__ == '__main__':
 
 # if __name__ == '__main__':
 #       app.run(host='::1', port=12855)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# resources=9
-
-# @app.post('/admitPatient')
-# def admitPatient():
-#         global resources
-#         print("admitPatientttt", resources)
-#         patient_type = request.query.patient_type
-#         patient_id = request.query.patient_id
-
-#         # Check if a patient_id is provided, if not, create a new patient and get the new ID
-#         if not patient_id:
-#             patient_id = 1
-
-#         # Check resource availability
-#         if patient_type == 'EM':
-#             status = 'ER Treatment'
-#             resources= resources-1
-#         else:
-#             status = 'Intake'  # Assuming a default status for other types
-
-#         response_data = {
-#             'message': f'Patient {patient_id} with status {status} is released',
-#             'patient_id': patient_id,
-#             'status': status,
-#         }
-
-#         # Set the response content type to application/json
-#         response.content_type = 'application/json'
-#         return json.dumps(response_data)
-
-# if __name__ == '__main__':
-#      app.run(host='::1', port=12855)
-
-
-# def create_patient(db, patient_type, arrival_time):
-#     cursor = db.cursor()
-#     cursor.execute("INSERT INTO Patients (patient_type, arrival_time, status) VALUES (?, ?, 'waiting')", (patient_type, arrival_time))
-#     db.commit()
-#     return cursor.lastrowid  # Return the auto-generated ID of the newly created patient
-
-
-# def update_patient_status(db, patient_id, status):
-#     cursor = db.cursor()
-#     new_patient_type = None  # Initialize to None to handle cases where no new type is assigned
-
-#     if status == 'ER Treatment':
-#         # Determine a new patient type only for ER treatments
-#         new_patient_type = determine_new_patient_type()
-#         # Update patient status and new patient type in the "Patients" table
-#         cursor.execute("""
-#             UPDATE Patients 
-#             SET status = ?, last_updated = ?, patient_type = ?
-#             WHERE patient_id = ?""",
-#             (status, datetime.datetime.now(), new_patient_type, patient_id))
-#     else:
-#         # For non-ER treatments, just update the status and last_updated
-#         cursor.execute("""
-#             UPDATE Patients 
-#             SET status = ?, last_updated = ?
-#             WHERE patient_id = ?""",
-#             (status, datetime.datetime.now(), patient_id))
-
-#     # Decrement a resource; resource_type is derived from status
-#     resource_type = 'ER' if status == 'ER Treatment' else 'Intake'
-#     cursor.execute("UPDATE Resources SET in_use_count = in_use_count + 1 WHERE resource_type = ?", (resource_type,))
-#     db.commit()
-
-# def determine_new_patient_type():
-#     # Assign a diagnosis with a 50% chance
-#     if random.random() < 0.5:
-#         # Create a random diagnosis by selecting from predefined types
-#         diagnosis_types = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4']
-#         diagnosis = random.choice(diagnosis_types)
-#         return f'EM-{diagnosis}'
-#     else:
-#         # 50% chance to just have phantom pain with no specific diagnosis
-#         return 'EM-Phantom Pain'
-
-# #good to go
-# def resource_availability_check(db, patient_type):
-#     resource_type = 'ER' if patient_type == 'EM' else 'Intake'
-#     cursor = db.cursor()
-#     cursor.execute("SELECT total_count, in_use_count FROM Resources WHERE resource_type = ?", (resource_type,))
-#     total, in_use = cursor.fetchone()
-#     return total > in_use
-
-
-# @app.teardown_appcontext
-# def teardown(error):
-#     """Close the db connection at the end of the request or when the application shuts down."""
-#     close_db(error)
-
-# def replanPatient(db, patient_id):
-#     print("replan")
-
-
-
-
