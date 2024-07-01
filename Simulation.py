@@ -260,7 +260,7 @@ def treatPatient():
         #queue #I don't like ths, better create a function that queues the patient by waiting/sleeping until there is a n
         # new patient 
         # create new action point called waiting room
-
+        return 
 
 
 
