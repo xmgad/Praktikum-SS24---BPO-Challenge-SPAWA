@@ -3,6 +3,9 @@ import json
 import random
 import requests
 import time
+from collections import deque
+
+
 
 
 
@@ -20,20 +23,40 @@ resources = {
     'B_BED': 40
 }
 
-def checkResources(patient_type, resource_type, is_new_patient):
-    status = None
-    if patient_type != "EM" and is_new_patient: #Set replan to true only if patient type is not "EM" and new
-        replan = True
-        status ='INTAKE'
-    else:
-            if resources[resource_type] > 0:
-                 resources[resource_type] -= 1
-                 replan = False
-                 status = resource_type
-            else:
-                 replan = True
-    return replan, status
+#queues for each resource
+resource_queues = {
+    'EM': deque(),
+    'INTAKE': deque(),
+    'OR': deque(),
+    'A_BED': deque(),
+    'B_BED': deque()
+}
 
+# def checkResources(patient_type, resource_type, is_new_patient):
+#     status = None
+#     if patient_type != "EM" and is_new_patient: #Set replan to true only if patient type is not "EM" and new
+#         replan = True
+#         status ='INTAKE'
+#     else:
+#             if resources[resource_type] > 0:
+#                  resources[resource_type] -= 1
+#                  replan = False
+#                  status = resource_type
+#             else:
+#                  replan = True
+#     return replan, status
+
+def checkResources(patient_type):
+    if patient_type is 'EM':
+        resources[patient_type] > 0
+        return True
+    else:
+        if resources['INTAKE'] > 0:
+            return True
+            
+    return False
+
+resourcesAvailable = False
 @app.post('/admitPatient')
 def admitPatient():
     
@@ -44,46 +67,87 @@ def admitPatient():
     #Extract patient_type and patient_id 
     data = request.json
     #print(data)
-    status = None
     if data:
         patient_id = data.get('patient_id')
         patient_type = data.get('patient_type')
-        replan = data.get('replan')
+        status = data.get('status')
     else:
         patient_id = request.forms.get('patient_id') or request.query.patient_id
         patient_type = request.forms.get('patient_type') or request.query.patient_type
-        replan = request.forms.get('replan') or request.query.replan
-        replan = request.forms.get('status') or request.query.status
+        status = request.forms.get('status') or request.query.status
 
-    # print(patient_type + " pt ")
-    # print(patient_id + " p_id ")
-    # print(str(replan) + " replan ")
 
-    # Check if the patient_id exists, if not, generate one
-    if not patient_id:
-        print('no patient id -     ')
-        patient_id = random.randint(1000, 9999)  # Example range for IDs
-        while patient_id in patients:
-            patient_id = random.randint(1000, 9999)  # Ensure uniqueness
-        patients[patient_id] = {'patient_type': patient_type}  # Add to dictionary
-        replan, status = checkResources(patient_type, "EM", True)
-        print(patient_id)
-    else:
-        print(resources)
-        replan, status = checkResources(patient_type, "INTAKE", False) 
-    #New patient added above, prepare response
+    patients[patient_id] = {'patient_type': patient_type}
+  
+    if checkResources(patient_type):
+        resourcesAvailable = True
+
     response_data = {
         'message': f"New patient {patient_id} admitted.",
         'patient_id': patient_id,
         'patient_type': patient_type,
-        'replan': replan,
+        'resources': resources,
+        'resourcesAvailable': resourcesAvailable,
         'status': status
         }
     print(response_data)
+    print(patients)
 
     #response content type to application/json
     response.content_type = 'application/json'
     return json.dumps(response_data)
+
+
+# @app.post('/admitPatient')
+# def admitPatient():
+    
+#     print(patients)
+#     print('\nentered admitPatient\n')
+#     print(resources)
+
+#     #Extract patient_type and patient_id 
+#     data = request.json
+#     #print(data)
+#     status = None
+#     if data:
+#         patient_id = data.get('patient_id')
+#         patient_type = data.get('patient_type')
+#         replan = data.get('replan')
+#     else:
+#         patient_id = request.forms.get('patient_id') or request.query.patient_id
+#         patient_type = request.forms.get('patient_type') or request.query.patient_type
+#         replan = request.forms.get('replan') or request.query.replan
+#         replan = request.forms.get('status') or request.query.status
+
+#     # print(patient_type + " pt ")
+#     # print(patient_id + " p_id ")
+#     # print(str(replan) + " replan ")
+
+#     # Check if the patient_id exists, if not, generate one
+#     if not patient_id:
+#         print('no patient id -     ')
+#         patient_id = random.randint(1000, 9999)  # Example range for IDs
+#         while patient_id in patients:
+#             patient_id = random.randint(1000, 9999)  # Ensure uniqueness
+#         patients[patient_id] = {'patient_type': patient_type}  # Add to dictionary
+#         replan, status = checkResources(patient_type, "EM", True)
+#         print(patient_id)
+#     else:
+#         print(resources)
+#         replan, status = checkResources(patient_type, "INTAKE", False) 
+#     #New patient added above, prepare response
+#     response_data = {
+#         'message': f"New patient {patient_id} admitted.",
+#         'patient_id': patient_id,
+#         'patient_type': patient_type,
+#         'replan': replan,
+#         'status': status
+#         }
+#     print(response_data)
+
+#     #response content type to application/json
+#     response.content_type = 'application/json'
+#     return json.dumps(response_data)
 
 
 
@@ -92,13 +156,23 @@ def admitPatient():
 def replanPatient():
     print("entered replanPatient")
     print(patients)
-    patient_id = int(request.forms.get('patient_id', None))
+
+    data = request.json
+
+    if data:
+        patient_id = data.get('patient_id')
+        patient_type = data.get('patient_type')
+    else:
+        patient_id = request.forms.get('patient_id') or request.query.patient_id
+        patient_type = request.forms.get('patient_type') or request.query.patient_type
+
     response.content_type = 'application/json'
     request_data = {
          "behavior": "fork_running",
          "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Amgad_Al-Zamkan.dir/Main_03710934.xml",
         "init": json.dumps({
-             "patient_id": patient_id
+             'patient_id': patient_id,
+             'patient_type': patient_type
         })
     }
     res = requests.post('https://cpee.org/flow/start/url/', request_data)
@@ -107,6 +181,34 @@ def replanPatient():
          raise Exception(res)
     print("exit replanPatient")
     return json.dumps({})
+
+@app.post('/treatPatient')
+def treatPatient():
+    print("entered treatPatient")
+    status = request.forms.get('status', None)
+    patient_id = int(request.forms.get('patient_id', None))
+    diagnosis = None
+    resourcesAvailable = True
+    
+    print('currently in: ' + status)
+    # Determine diagnosis for patients moving out of EM or INTAKE
+    if(status == 'EM'):
+        patients[patient_id]['diagnosis'] = determineDiagnosis(patients[patient_id]['patient_type'])
+    
+    if(status ==  'EM') and (random.choice([True,False])):
+        new_status = 'RELEASE'
+    else:
+        new_status = nextTreatment(diagnosis, status)
+
+    resourcesAvailable = manageResourceTransition(diagnosis, status, new_status)
+
+    if resourcesAvailable:
+        #if resources were available and transition was successful
+        status = new_status
+        patients[patient_id]['status'] = new_status
+    else:
+        #Resource was not available, patient is now waiting in queue
+        print(f"Patient {patient_id} is waiting for resources to become available for {new_status}")
 
 
 def nextTreatment(diagnosis, status):
@@ -207,201 +309,125 @@ def manageResourceTransition(diagnosis, old_resource_type, new_resource_type):
     return resourcesAvailable
 
 
+if __name__ == '__main__':
+       app.run(host='::1', port=12855)
 
-@app.post('/treatPatient')
-def treatPatient():
-    print("entered treatPatient")
-    status = request.forms.get('status', None)
-    patient_id = int(request.forms.get('patient_id', None))
-    diagnosis = None
-    resourcesAvailable = True
+
+# def manageResourceTransition(patient_id, old_status, new_status, diagnosis):
+#     if resources[new_status] > 0:
+#         resources[new_status] -= 1
+#         # Free up the old resource if applicable
+#         if old_status in ['EM', 'INTAKE', 'OR', 'NURSING']:
+#             resources[old_status] += 1
+#         return True
+#     else:
+#         # Add to queue and wait
+#         resource_queues[new_status].append((patient_id, old_status, diagnosis))
+#         return False
+
+# def process_queues():
+#     for resource, queue in resource_queues.items():
+#         if resources[resource] > 0:
+#             while queue and resources[resource] > 0:
+#                 patient_id, old_status, diagnosis = queue.popleft()
+#                 resources[resource] -= 1
+#                 if old_status in ['EM', 'INTAKE', 'OR', 'NURSING']:
+#                     resources[old_status] += 1
+#                 patients[patient_id]['status'] = resource
+#                 print(f"Patient {patient_id} moved to {resource} from queue")
+
+
+# @app.post('/treatPatient')
+# def treatPatient():
+#     print("entered treatPatient")
+#     status = request.forms.get('status', None)
+#     patient_id = int(request.forms.get('patient_id', None))
+#     diagnosis = None
+#     resourcesAvailable = True
     
-    print('currently in: ' + status)
-    # Determine diagnosis for patients moving out of EM or INTAKE
-    if(status == 'EM' or status == 'INTAKE'):
-        patients[patient_id]['diagnosis'] = determineDiagnosis(patients[patient_id]['patient_type'])
+#     print('currently in: ' + status)
+#     # Determine diagnosis for patients moving out of EM or INTAKE
+#     if(status == 'EM'):
+#         patients[patient_id]['diagnosis'] = determineDiagnosis(patients[patient_id]['patient_type'])
 
-    if (status == 'EM'):
-        if random.choice([True,False]):
-            resources['EM'] += 1  # Free up EM resource as patient leaves EM
-            status = 'RELEASE'
-        else:
-            new_status = nextTreatment(diagnosis, status) # new_status = where they're going
-            manageResourceTransition(diagnosis, status, new_status)
-            status = new_status
-             #new status will be OR or NURSING
-    elif (status == 'INTAKE'):
-        new_status = nextTreatment(patients[patient_id]['patient_type'], status)
-        manageResourceTransition(status, new_status) #determine if resources are available 
-        #and check if there is a necessary pause + -/+ resources]
-        status = new_status
-    elif (status == 'OR'):
-        new_status = nextTreatment(patients[patient_id]['patient_type'], status)
-        manageResourceTransition(status, new_status) 
-        status = new_status
 
-    elif(status == 'NURSING'):
-        if(patients[patient_id]['patient_type'] == "EM"):
-           new_status = nextTreatment(patients[patient_id]['diagnosis'], status)
-        else:
-           new_status = nextTreatment(patients[patient_id]['patient_type'], status)
-        
-        manageResourceTransition(diagnosis, status, new_status)
-        
-        # if( 'A' in patients[patient_id]['patient_type'] or patients[patient_id]['diagnosis']):
-        #    resources['A_BED'] -= 1
-        # else:
-        #    resources['B_BED'] -= 1
-    else:
-        print("Patient will be released")
-        manageResourceTransition(diagnosis, status, new_status)
+#     # new_status = nextTreatment(diagnosis, status)  # Determine next status
+#     # if manageResourceTransition(patient_id, status, new_status, diagnosis):
+#     #     # If resources were available and transition was successful
+#     #     status = new_status
+#     #     patients[patient_id]['status'] = new_status
+#     # else:
+#     #     # Resource was not available, patient is now waiting in queue
+#     #     print(f"Patient {patient_id} is waiting for resources to become available for {new_status}")
     
-    
+#     if(status ==  'EM') and (random.choice([True,False])):
+#         new_status = 'RELEASE'
+#     else:
+#         new_status = nextTreatment(diagnosis, status)
+
+#     resourcesAvailable = manageResourceTransition(diagnosis, status, new_status)
+
+#     if resourcesAvailable:
+#         #if resources were available and transition was successful
+#         status = new_status
+#         patients[patient_id]['status'] = new_status
+#     else:
+#         #Resource was not available, patient is now waiting in queue
+#         print(f"Patient {patient_id} is waiting for resources to become available for {new_status}")
 
 
 
+
+########################################################
+
+    # if (status == 'EM'):
+    #     if random.choice([True,False]):
+    #         resources['EM'] += 1  # Free up EM resource as patient leaves EM
+    #         status = 'RELEASE'
+    #     else:
+    #         new_status = nextTreatment(diagnosis, status) # new_status = where they're going
+    #         manageResourceTransition(diagnosis, status, new_status)
+    #         status = new_status
+    #          #new status will be OR or NURSING
     # elif (status == 'INTAKE'):
-    #     status = nextTreatment(patients[patient_id]['patient_type'], status)
-    #     #decrement INTAKE resources
+    #     new_status = nextTreatment(patients[patient_id]['patient_type'], status)
+    #     manageResourceTransition(status, new_status) #determine if resources are available 
+    #     #and check if there is a necessary pause + -/+ resources]
+    #     status = new_status
     # elif (status == 'OR'):
-    #     status = nextTreatment(patients[patient_id]['patient_type'], status)
-    #     resources['OR'] -=1
+    #     new_status = nextTreatment(patients[patient_id]['patient_type'], status)
+    #     manageResourceTransition(status, new_status) 
+    #     status = new_status
+
     # elif(status == 'NURSING'):
     #     if(patients[patient_id]['patient_type'] == "EM"):
-    #        status = nextTreatment(patients[patient_id]['diagnosis'], status)
+    #        new_status = nextTreatment(patients[patient_id]['diagnosis'], status)
     #     else:
-    #         status = nextTreatment(patients[patient_id]['patient_type'], status)
-
-    #     if( 'A' in patients[patient_id]['patient_type'] or patients[patient_id]['diagnosis']):
-    #         resources['A_BED'] -= 1
-    #     else:
-    #         resources['B_BED'] -= 1
+    #        new_status = nextTreatment(patients[patient_id]['patient_type'], status)
+        
+    #     manageResourceTransition(diagnosis, status, new_status)
+        
+    #     # if( 'A' in patients[patient_id]['patient_type'] or patients[patient_id]['diagnosis']):
+    #     #    resources['A_BED'] -= 1
+    #     # else:
+    #     #    resources['B_BED'] -= 1
     # else:
     #     print("Patient will be released")
+    #     manageResourceTransition(diagnosis, status, new_status)
+    
 
+    # response_data = {
+    #     'message': f"Patient {patient_id} needs to go to {status} .",
+    #     'patient_id': patient_id,
+    #     'status': status,
+    #     'diagnosis': diagnosis
+    #     }
+    # print("status: " + status)
+    # print(resources)
+    # print("exit treatPatient")
 
-    response_data = {
-        'message': f"Patient {patient_id} needs to go to {status} .",
-        'patient_id': patient_id,
-        'status': status,
-        'diagnosis': diagnosis
-        }
-    print("status: " + status)
-    print(resources)
-    print("exit treatPatient")
-
-    response.content_type = 'application/json'
-    return json.dumps(response_data)
-
-
-if __name__ == '__main__':
-       app.run(host='::1', port=12857)
-
-
-     
-
-    # treatment_type = request.forms.get('treatment_type', None)
-    # status = request.forms.get('status', None)
-    # patient_id = int(request.forms.get('patient_id', None))
-    # patient = patients[patient_id]
-    # if status == 'RELEASE':
-    #     resources[treatment_type] += 1
-    #     return {}
-    # else:
-    #     resources[treatment_type] -= 1
-
-    # # Determine status next round
-    # if patient['patient_type'] == 'EM':
-    #     is_release =  random.choice(True, False)
-    #     if is_release:
-    #         new_status = 'RELEASE'
-    #     else:
-    #         determine_new_status(patient['patient_type'])
-    #         # hard code next step (nursing if intake and a1/b1/b2)
-    #         # else other next step
-            
-             
     # response.content_type = 'application/json'
-    # return json.dumps({
-    #      # return next status or treatment type
-    # })
+    # return json.dumps(response_data)
 
 
 
-
-# if __name__ == '__main__':
-#        app.run(host='::1', port=12855)
-
-
-
-
-
-
-# from bottle import Bottle, request, response, run
-# import random
-# import json
-# import datetime
-
-# app = Bottle()
-
-
-# from bottle import Bottle, request, response, run
-# import random
-# import json
-# import datetime
-
-# app = Bottle()
-
-# # In-memory data structure to store patient data
-# patients = {}
-
-# # Resource management dictionary
-# resources = {
-#     'ER_Resources': 9,
-#     'Intake_Resources': 4,
-#     'Operation_Rooms': 5,
-#     'Nursing_Type_A_Beds': 30,
-#     'Nursing_Type_B_Beds': 40
-# }
-
-# @app.post('/admitPatient')
-# def admitPatient():
-#     global patients
-#     print('admit patients', patients)
-#     # Extract data from query parameters
-#     patient_id = request.query.patient_id
-#     patient_type = request.query.patient_type
-#     arrival_time = request.query.arrival_time
-#     status = request.query.get('status', 'waiting')  # Default to 'waiting' if no status provided
-
-#     # If patient_id is not provided or is empty, generate a random one
-#     if not patient_id:
-#         print('no patient id - ')
-#         patient_id = random.randint(1000, 9999)  # Example range for IDs
-#         while patient_id in patients:
-#             patient_id = random.randint(1000, 9999)  # Ensure uniqueness
-
-#     # Save the patient data
-#     patients[patient_id] = {
-#         'patient_type': patient_type,
-#         'arrival_time': arrival_time,
-#         'status': status
-#     }
-
-#     print(' added patient to patient dic - ')
-
-#     # Prepare the response data
-#     response_data = {
-#         'message': f'Patient {patient_id} admitted with status {status}',
-#         'patient_type': patient_type,
-#         'patient_id': patient_id,
-#         'status': status,
-#         'arrival_time': arrival_time
-#     }
-
-#     # Set the response content type to application/json
-#     response.content_type = 'application/json'
-#     return json.dumps(response_data)
-
-# if __name__ == '__main__':
-#       app.run(host='::1', port=12855)
